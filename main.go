@@ -56,8 +56,16 @@ func main() {
 			}
 			bind, err := c.getBinds(parsedBody.Repository.Name)
 			if err != nil {
+				w.WriteHeader(http.StatusBadRequest)
 				fmt.Fprintf(w, "Repository Flagged")
-				log.Print("Repository Flagged")
+				//set status to bad request
+
+				return
+			}
+			if bind == "" {
+				w.WriteHeader(http.StatusBadRequest)
+				fmt.Fprintf(w, "Repository Flagged")
+				return
 			}
 			fmt.Fprintf(w, "Docker Container Created With Name: %s", parsedBody.Repository.Name)
 			log.Println(c)

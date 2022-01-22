@@ -1,8 +1,0 @@
-POST https://hebrew-greek-emerging-chaos.trycloudflare.com  
-Content-Type: application/json
-
-{
-    "repository": {
-        "name":"ybabackendv2"
-    }
-}
