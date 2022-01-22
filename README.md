@@ -22,7 +22,7 @@ binds:
   - name: ybabackendv2
     bind: "/etc/:/tmp"
 ```
-The `port` is the port that the server will listen on, the `Folder` is the folder that the server will bind to. To add more binds you should add another `Binds` entry. The `name` in the `Binds` entry is the name of repository that the post request is from. The `bind` is the path that the server will bind to.
+The `port` is the port that the server will listen on. To add more binds you should add another `binds` entry. The `name` in the `Binds` entry is the name of repository that the post request is from. The `bind` is the path that the server will bind to.
 
 ### Github:
 The Github webhook is used to trigger the build. The Github webhook should be configured to post to the url of `https://your-server-ip:THEPORTYOUSPECIFED/`. 
