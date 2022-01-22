@@ -18,10 +18,9 @@ In order to install this tool you need to download the latest version of the com
 You are required to generate your own config.yml file, the format should look like so:
 ```yaml
 port: :9000
-Folder:
-  Binds: 
-    - name: ybabackendv2
-      bind: "/etc/:/tmp"
+binds: 
+  - name: ybabackendv2
+    bind: "/etc/:/tmp"
 ```
 The `port` is the port that the server will listen on, the `Folder` is the folder that the server will bind to. To add more binds you should add another `Binds` entry. The `name` in the `Binds` entry is the name of repository that the post request is from. The `bind` is the path that the server will bind to.
 
