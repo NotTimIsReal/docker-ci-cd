@@ -1,5 +1,0 @@
-port: :9000
-Folder:
-  Binds: 
-    - name: ybabackendv2
-      bind: "/etc/:/tmp"

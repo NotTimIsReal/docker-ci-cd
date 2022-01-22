@@ -2,6 +2,7 @@ POST http://localhost:9000
 Content-Type: application/json
 
 {
-    "folder": "/etc/:/tmp/",
-    "name": "cloudflared"
+    "repository": {
+        "name":"ybabackendv2"
+    }
 }

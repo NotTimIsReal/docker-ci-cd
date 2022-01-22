@@ -2,17 +2,19 @@ package main
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
 	"runtime"
-
-	"encoding/json"
+	"time"
 
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
+	"github.com/docker/docker/api/types/filters"
 	"github.com/docker/docker/client"
 	"gopkg.in/yaml.v2"
 )
@@ -35,35 +37,33 @@ func main() {
 	mux := http.NewServeMux()
 	log.Println("Initalised MiddleWare")
 	mux.Handle("/", serverHeader(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		removeContainersDead(client)
 		switch r.Method {
 		case "POST":
 			var parsedBody acceptedBody
 			log.Println("POST Request")
-			body, raw, err := getBody(r)
+			val, err := parsedBody.getBody(r)
 			if err != nil {
 				log.Println(err)
 			}
-			if body == "" {
-				w.WriteHeader(http.StatusBadRequest)
-				fmt.Fprintf(w, "Body Not Found")
-				return
-			}
-			json.Unmarshal(raw, &parsedBody)
-			if parsedBody.Repository.Name == "" {
+			if val.Repository.Name == "" {
 				w.WriteHeader(http.StatusBadRequest)
 				fmt.Fprintf(w, "Invalid Body or JSON Format")
 				return
 			}
-			go createNewContainer(client, alpine, "/tmp:/etc", parsedBody.Repository.Name)
-			namedContainer, err := getContainerByName(client, parsedBody.Repository.Name)
 			if err != nil {
 				log.Fatal(err)
+			}
+			bind, err := c.getBinds(parsedBody.Repository.Name)
+			if err != nil {
+				fmt.Fprintf(w, "Repository Flagged")
+				log.Print("Repository Flagged")
 			}
 			fmt.Fprintf(w, "Docker Container Created With Name: %s", parsedBody.Repository.Name)
-			err = client.ContainerStart(context.Background(), namedContainer.ID, types.ContainerStartOptions{})
-			if err != nil {
-				log.Fatal(err)
-			}
+			log.Println(c)
+			createAndStartContainer(client, alpine, bind, parsedBody.Repository.Name)
+			r.Body.Close()
+
 		default:
 			log.Println("Unsupported Request")
 			w.WriteHeader(http.StatusMethodNotAllowed)
@@ -71,6 +71,9 @@ func main() {
 		}
 	})))
 	log.Printf("Listening On Port %s", c.Port)
+	go repeatEvery(5*time.Second, func() {
+		removeContainersDead(client)
+	})
 	log.Fatal(http.ListenAndServe(c.Port, mux))
 
 }
@@ -84,18 +87,18 @@ func serverHeader(next http.Handler) http.Handler {
 }
 
 type conf struct {
-	Port   string `yaml:"port"`
-	Folder struct {
-		Binds []struct {
-			Name string `yaml:"name"`
-			bind string `yaml:"bind"`
-		}
-	}
+	Port  string `yaml:"port"`
+	Binds []struct {
+		Name string `yaml:"name"`
+		Bind string `yaml:"bind"`
+	} `yaml:"binds"`
 }
+
 type acceptedBody struct {
-	Repository struct {
-		Name string `json:"name"`
-	} `json:"respository"`
+	Repository Repo `json:"repository"`
+}
+type Repo struct {
+	Name string `json:"name"`
 }
 
 func (c *conf) getConf() *conf {
@@ -111,56 +114,38 @@ func (c *conf) getConf() *conf {
 	if c.Port == "" {
 		c.Port = ":3000"
 	}
-	if c.Folder.Binds == nil {
+	if c.Binds == nil {
 		log.Fatal("Binds Not Found")
 		panic("Config File is not valid please check the readme for valid configs")
 	}
 	return c
 }
-func createNewContainer(client *client.Client, image string, location string, name string) (containerID string, err error) {
-	ctx := context.Background()
-	resp, err := client.ContainerCreate(ctx, &container.Config{
-		Image: image,
-		Cmd:   []string{"/bin/sh", "-c", "apk add --no-cache git && git pull"},
-	}, &container.HostConfig{
-		Binds: []string{location},
-	}, nil, nil, name)
-	if err != nil {
-		if err.Error() == "Error response from daemon: No such image: "+image {
-			client.ImagePull(ctx, image, types.ImagePullOptions{})
-			resp, err := createNewContainer(client, image, location, name)
-			if err != nil {
-				log.Fatal(err)
-			}
-			return resp, nil
-
-		}
-		return "", err
-	}
-
-	return resp.ID, nil
-
-}
 func getRightImage(alpine *string) {
 	system := runtime.GOOS
 	switch system {
 	case "linux":
-		*alpine = "alpine:latest"
+		*alpine = "ghcr.io/nottimisreal/alpinewithgit"
 	case "darwin":
-		*alpine = "alpine:latest"
+		*alpine = "ghcr.io/nottimisreal/alpinewithgit"
 	case "windows":
-		*alpine = "alpine:latest"
+		*alpine = "ghcr.io/nottimisreal/alpinewithgit"
 	default:
-		*alpine = "alpine:latest"
+		*alpine = "ghcr.io/nottimisreal/alpinewithgit"
 	}
 
 }
-func getBody(r *http.Request) (string, []byte, error) {
+func (b *acceptedBody) getBody(r *http.Request) (*acceptedBody, error) {
 	body, err := ioutil.ReadAll(r.Body)
 	if err != nil {
-		return "", []byte(""), err
+		log.Fatal(err)
+		return nil, err
 	}
-	return string(body), body, nil
+	err = json.Unmarshal(body, b)
+	if err != nil {
+		log.Fatal(err)
+		return nil, err
+	}
+	return b, nil
 }
 func getContainerByName(client *client.Client, name string) (container types.Container, err error) {
 	ctx := context.Background()
@@ -174,4 +159,61 @@ func getContainerByName(client *client.Client, name string) (container types.Con
 		}
 	}
 	return container, nil
+}
+func (c *conf) getBinds(containerName string) (string, error) {
+	for _, bind := range c.Binds {
+		if bind.Name == containerName {
+			return bind.Bind, nil
+		}
+	}
+	return "", errors.New("no such container")
+}
+func createAndStartContainer(client *client.Client, image string, location string, name string) (containerID string) {
+	ctx := context.Background()
+	resp, err := client.ContainerCreate(ctx, &container.Config{
+		Image: image,
+		//run git pull and exit
+		Cmd: []string{"/bin/sh", "-c", "git pull", " && exit"},
+	}, &container.HostConfig{
+		Binds: []string{location},
+	}, nil, nil, name)
+	if err != nil {
+		if err.Error() == "Error response from daemon: No such image: "+image {
+			client.ImagePull(ctx, image, types.ImagePullOptions{})
+			resp := createAndStartContainer(client, image, location, name)
+
+			return resp
+
+		} else {
+			log.Fatal(err)
+		}
+	}
+	go func() {
+		err := client.ContainerStart(ctx, resp.ID, types.ContainerStartOptions{})
+		if err != nil {
+			log.Fatal(err)
+		}
+	}()
+	return resp.ID
+}
+func removeContainersDead(c *client.Client) {
+	ctx := context.Background()
+	containers, err := c.ContainerList(ctx, types.ContainerListOptions{
+		Filters: filters.NewArgs(
+			filters.Arg("status", "exited"),
+		),
+	})
+	if err != nil {
+		log.Fatal(err)
+	}
+	for _, container := range containers {
+		c.ContainerRemove(ctx, container.ID, types.ContainerRemoveOptions{})
+	}
+
+}
+func repeatEvery(d time.Duration, f func()) {
+	for {
+		f()
+		time.Sleep(d)
+	}
 }

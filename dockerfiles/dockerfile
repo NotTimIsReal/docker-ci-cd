@@ -1,0 +1,4 @@
+FROM alpine:latest
+RUN echo $USER
+RUN apk add --no-cache git
+WORKDIR /home/root

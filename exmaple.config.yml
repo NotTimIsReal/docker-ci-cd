@@ -1,0 +1,4 @@
+port: :9000
+binds: 
+  - name: ybabackendv2
+    bind: /path/to/repo/on-host/:/home/root

@@ -15,7 +15,7 @@ In order to install this tool you need to download the latest version of the com
 
 ## Usage
 ### Configuation:
-You are required to generate your own config.yml file, the format should look like so:
+You are required to generate your own config.yaml file, the format should look like so:
 ```yaml
 port: :9000
 binds: 
