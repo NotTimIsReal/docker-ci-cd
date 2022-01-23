@@ -17,7 +17,7 @@ In order to install this tool you need to download the latest version of the com
 ### Configuation:
 You are required to generate your own config.yaml file, the format should look like so:
 ```yaml
-port: :9000
+port: :8080
 binds: 
   - name: ybabackendv2
     bind: "/etc/:/tmp"
