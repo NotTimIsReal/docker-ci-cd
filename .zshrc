@@ -1,4 +1,4 @@
-fucntion compile(){
+function compile(){
     echo "Compiling..."
     go build -o .bin/cd-ci
     echo "Compiled"
