@@ -1,5 +1,5 @@
 function compile(){
-    echo "Compiling..."
+    echo "Compiling to binary..."
     go build -o .bin/cd-ci
     echo "Compiled"
 }
