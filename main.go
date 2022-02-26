@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"runtime"
+	"strings"
 	"time"
 
 	"github.com/docker/docker/api/types"
@@ -71,7 +72,7 @@ func main() {
 			log.Println(c)
 			createAndStartContainer(client, alpine, bind, parsedBody.Repository.Name)
 			r.Body.Close()
-
+			restartBindContainer(client, bind)
 		default:
 			log.Println("Unsupported Request")
 			w.WriteHeader(http.StatusMethodNotAllowed)
@@ -223,5 +224,36 @@ func repeatEvery(d time.Duration, f func()) {
 	for {
 		f()
 		time.Sleep(d)
+	}
+}
+func restartBindContainer(c *client.Client, bind string) {
+	var timeout = time.Duration(0 * time.Second)
+	bind = strings.Split(bind, ":")[0]
+	ctx := context.Background()
+	//list all contaainers with the bind location
+	containers, err := c.ContainerList(ctx, types.ContainerListOptions{
+		// Filters: filters.NewArgs(
+		// 	filters.Arg("volume", bind),
+		// ),
+	})
+	if err != nil {
+		log.Fatal(err)
+	}
+	for _, container := range containers {
+		for _, mount := range container.Mounts {
+			if mount.Type == "bind" {
+				if mount.Source == bind || mount.Source+"/" == bind {
+					fmt.Println(mount.Source)
+					//restart container immediately
+					err := c.ContainerRestart(ctx, container.ID, &timeout)
+					if err != nil {
+						log.Fatal(err)
+					}
+					break
+				}
+
+			}
+		}
+
 	}
 }
